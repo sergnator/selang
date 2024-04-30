@@ -8,6 +8,8 @@ class TokenType:
 
 
 TokenTypes = {
+    "INPUT": TokenType("INPUT", "input"),
+    "STRING": TokenType("STRING", '".+?"'),
     "IF": TokenType("IF", r"if"),
     "WHILE": TokenType("WHILE", r"while"),
     "BOOL": TokenType("BOOL", r"True|False"),

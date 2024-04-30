@@ -48,3 +48,9 @@ class NodeWBody(UnaryOperand):
     def __init__(self, operator, operand, body):
         super().__init__(operator, operand)
         self.body = body
+
+
+class StringNode(Node):
+    def __init__(self, value):
+        super().__init__()
+        self.value = value

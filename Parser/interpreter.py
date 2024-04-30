@@ -47,12 +47,17 @@ class Interpreter:
             if node.operator.token_type.name == "WHILE":
                 while self.run(node.operand):
                     self.run(node.body)
+            if node.operator.token_type.name == "INPUT":
+                return input()
         if isinstance(node, NumNode):
             return int(node.num.text)
         if isinstance(node, BooleanNode):
             if node.value.text == "True":
                 return True
             return False
+        if isinstance(node, StringNode):
+            text: str = node.value.text
+            return text[1:-1]
 
     def parse(self):
         root = RootNode()
@@ -86,7 +91,12 @@ class Interpreter:
         if var is None:
             print_token = self.__math(TokenTypes["PRINT"])
             if print_token is None:
-                token_with_body = self.__math(TokenTypes["IF"])
+                print_token = self.__math(TokenTypes["INPUT"])
+                token_with_body = None
+                if print_token is None:
+                    token_with_body = self.__math(TokenTypes["IF"])
+                else:
+                    return UnaryOperand(print_token, None)
                 if token_with_body is None:
                     token_with_body = self.__math(TokenTypes["WHILE"])
                 if token_with_body is None:
@@ -103,7 +113,7 @@ class Interpreter:
             body_operator = self.__parse_name_space()
             return NodeWBody(token_with_body, right, body_operator)
 
-        var = self.__parse_num_or_var_or_bool()
+        var = self.__parse_num_or_var_or_bool_str_or_input()
         eq = self.__math(TokenTypes["EQUALS"])
         if eq is not None:
             right = self.__parse_formula()
@@ -111,7 +121,7 @@ class Interpreter:
             return binary_operand
         raise SyntaxError("Ожидался оператор присваивания")
 
-    def __parse_num_or_var_or_bool(self):
+    def __parse_num_or_var_or_bool_str_or_input(self):
         num = self.__math(TokenTypes["NUM"])
         if num is not None:
             return NumNode(num)
@@ -121,10 +131,16 @@ class Interpreter:
         bool_ = self.__math(TokenTypes["BOOL"])
         if bool_ is not None:
             return BooleanNode(bool_)
+        str_ = self.__math(TokenTypes["STRING"])
+        if str_ is not None:
+            return StringNode(str_)
+        input_ = self.__math(TokenTypes["INPUT"])
+        if input_ is not None:
+            return UnaryOperand(input_, None)
         raise SyntaxError("Неверный синтаксис ожидалось число или имя переменной")
 
     def __parse_formula(self):
-        left = self.__parse_num_or_var_or_bool()
+        left = self.__parse_num_or_var_or_bool_str_or_input()
         operator = self.__math(TokenTypes["PLUS"])
         if operator is None:
             operator = self.__math(TokenTypes["MINUS"])
@@ -132,7 +148,7 @@ class Interpreter:
             operator = self.__math(TokenTypes["LOGICAL"])
         node_formula = left
         while operator is not None:
-            right = self.__parse_num_or_var_or_bool()
+            right = self.__parse_num_or_var_or_bool_str_or_input()
             node_formula = BinOperand(operator, left, right)
             operator = self.__math(TokenTypes["PLUS"])
             if operator is None:

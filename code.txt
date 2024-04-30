@@ -1,5 +1,2 @@
-var i = 0;
-while(i < 10){
-    print(i);
-    var i = i + 1;
-};
+var a = input;
+print(a);
