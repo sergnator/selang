@@ -8,7 +8,6 @@ class TokenType:
 
 
 TokenTypes = {
-    "INPUT": TokenType("INPUT", "input"),
     "STRING": TokenType("STRING", '".+?"'),
     "IF": TokenType("IF", r"if"),
     "WHILE": TokenType("WHILE", r"while"),
@@ -20,10 +19,8 @@ TokenTypes = {
     "PLUS": TokenType("PLUS", "[+]"),
     "MINUS": TokenType("MINUS", "-"),
     "NUM": TokenType("NUM", "[0-9]+"),
-    "PRINT": TokenType("PRINT", "print"),
     "EQUALS": TokenType("EQUALS", "={1}?"),
-    "NAME VAR": TokenType("NAME VAR", r"(([a-z])|([A-z]))+"),
     "START NAME SPACE": TokenType("START NAME SPACE", r"[{]"),
     "END NAME SPACE": TokenType("END NAME SPACE", r"[}]"),
-    "START BRACKET": TokenType("START BRACKET", r"[(]"),
-    "END BRACKET": TokenType("END BRACKET", r"[)]")}
+    "OBJ": TokenType("OBJ", r"([a-z]|[A-z])+"),
+    "PARAMS": TokenType("PARAMS", r"[(].*[)]")}

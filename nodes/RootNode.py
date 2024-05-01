@@ -26,7 +26,7 @@ class UnaryOperand(Node):
         self.operand = operand
 
 
-class VariableNode(Node):
+class CreateVariableNode(Node):
     def __init__(self, var):
         super().__init__()
         self.var = var
@@ -54,3 +54,15 @@ class StringNode(Node):
     def __init__(self, value):
         super().__init__()
         self.value = value
+
+
+class ObjNode(Node):
+    def __init__(self, obj):
+        super().__init__()
+        self.obj = obj
+
+
+class FunctionNode(ObjNode):
+    def __init__(self, func_name, params):
+        super().__init__(func_name)
+        self.params = params

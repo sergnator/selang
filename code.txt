@@ -1,2 +1,1 @@
-var a = input;
-print(a);
+print(1 + 2 - 3);

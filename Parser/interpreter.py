@@ -1,7 +1,5 @@
-from _ast import BinOp
-
 from nodes.RootNode import *
-from Tokens.TokenType import *
+from Parser.Le import *
 
 
 class Interpreter:
@@ -12,14 +10,24 @@ class Interpreter:
 
     def run(self, node):
         if isinstance(node, RootNode):
+            res = []
             for node_ in node.code_string:
-                self.run(node_)
+                res.append(self.run(node_))
+                return res
             return
-        if isinstance(node, VariableNode):
+        if isinstance(node, FunctionNode):
             try:
-                return self.scope[f"{node.var.text}"]
+                function_form_scope = self.scope[node.obj.text]
             except KeyError:
-                raise SyntaxError(f"Variable {node.var.text} is not defined")
+                raise SyntaxError(f"Function {node.obj.text} is not defined")
+            if not isinstance(function_form_scope, tuple):
+                raise SyntaxError(f"Obj {node.obj.text} is not callable")
+            return function_form_scope[1](*self.run(node.params))
+        if isinstance(node, ObjNode):
+            try:
+                return self.scope[f"{node.obj.text}"]
+            except KeyError:
+                raise SyntaxError(f"Variable {node.obj.text} is not defined")
         if isinstance(node, BinOperand):
             if node.operator.token_type.name == "EQUALS":
                 result = self.run(node.right)
@@ -39,16 +47,12 @@ class Interpreter:
                 if node.operator.text == ">":
                     return self.run(node.left) > self.run(node.right)
         if isinstance(node, UnaryOperand):
-            if node.operator.token_type.name == "PRINT":
-                print(self.run(node.operand))
             if node.operator.token_type.name == "IF":
                 if self.run(node.operand):
                     self.run(node.body)
             if node.operator.token_type.name == "WHILE":
                 while self.run(node.operand):
                     self.run(node.body)
-            if node.operator.token_type.name == "INPUT":
-                return input()
         if isinstance(node, NumNode):
             return int(node.num.text)
         if isinstance(node, BooleanNode):
@@ -61,6 +65,8 @@ class Interpreter:
 
     def parse(self):
         root = RootNode()
+        self.scope["input"] = ([], input)
+        self.scope["print"] = (["text"], print)
         while self.pos < len(self.tokens):
             line_code = self.__parse_line()
             if self.__math(TokenTypes["END"]) is None:
@@ -78,69 +84,100 @@ class Interpreter:
                 return current_token
         return None
 
-    def __current_token(self):
-        if self.pos < len(self.tokens):
-            while self.tokens[self.pos].token_type.name == "SPACE":
-                self.pos += 1
-            current_token = self.tokens[self.pos]
-            return current_token
-        return None
+    def __parse_name(self):
+        name = self.__math(TokenTypes["OBJ"])
+        if name is None:
+            raise SyntaxError(f"Ожидался индификатор")
 
-    def __parse_line(self):
-        var = self.__math(TokenTypes["VAR"])
-        if var is None:
-            print_token = self.__math(TokenTypes["PRINT"])
-            if print_token is None:
-                print_token = self.__math(TokenTypes["INPUT"])
-                token_with_body = None
-                if print_token is None:
-                    token_with_body = self.__math(TokenTypes["IF"])
-                else:
-                    return UnaryOperand(print_token, None)
-                if token_with_body is None:
-                    token_with_body = self.__math(TokenTypes["WHILE"])
-                if token_with_body is None:
-                    raise SyntaxError("Неизвестный синтаксис")
-            if self.__math(TokenTypes["START BRACKET"]) is None:
-                raise SyntaxError("Ожидалось открытие скобки")
-            right = self.__parse_formula()
-            if self.__math(TokenTypes["END BRACKET"]) is None:
-                raise SyntaxError("Скобка никогда не закрывается")
-            if print_token is not None:
-                return UnaryOperand(print_token, right)
-            if self.__math(TokenTypes["START NAME SPACE"]) is None:
-                raise SyntaxError("Тело условного оператора обязательно")
-            body_operator = self.__parse_name_space()
-            return NodeWBody(token_with_body, right, body_operator)
-
-        var = self.__parse_num_or_var_or_bool_str_or_input()
+    def __parse_var(self):
+        var = self.__parse_name()
         eq = self.__math(TokenTypes["EQUALS"])
         if eq is not None:
             right = self.__parse_formula()
             binary_operand = BinOperand(eq, var, right)
             return binary_operand
-        raise SyntaxError("Ожидался оператор присваивания")
+        raise SyntaxError("Ожидалось =")
 
-    def __parse_num_or_var_or_bool_str_or_input(self):
+    def __parse_line(self):
+        var = self.__math(TokenTypes["VAR"])
+        if var is not None:
+            return self.__parse_var()
+        obj = self.__math(TokenTypes["OBJ"])
+        if obj is not None:
+            params = self.__math(TokenTypes["PARAMS"])
+            if params is not None:
+                return FunctionNode(obj, self.__parse_params(params))
+
+    def __parse_variable_a(self, obj):
+        eq = self.__math(TokenTypes["EQUALS"])
+        if eq is not None:
+            right = self.__parse_formula()
+            binary_operand = BinOperand(eq, eq, right)
+            return binary_operand
+        raise SyntaxError("Ожидалось =")
+
+    def __parse_body_function(self):
+        if self.__math(TokenTypes["START NAME SPACE"]) is not None:
+            root = RootNode()
+            while self.pos < len(self.tokens):
+                line_code = self.__parse_line()
+                if self.__math(TokenTypes["END"]) is None:
+                    raise SyntaxError("Unexpected end of line ;")
+                root.add_node(line_code)
+            if self.__math(TokenTypes["END NAME SPACE"]) is not None:
+                return root
+            raise SyntaxError("{ never closed")
+        raise SyntaxError("Ожидалось {")
+
+    def __parse_params(self, params):
+        params = params.text.split("(")[-1].split(")")[0].split(',')
+        root = RootNode()
+        for param in params:
+            lang = Lang(param)
+            tokens = lang.lex_analytic()
+            tokens_without_space = []
+            for token in tokens:
+                if token.token_type.name != "SPACE":
+                    tokens_without_space.append(token)
+            tokens = tokens_without_space[:]
+            for i in range(len(tokens)):
+                if tokens[i].token_type.name == "NUM" or tokens[i].token_type.name == "BOOL" or tokens[
+                    i].token_type.name == "STRING":
+                    num = NumNode(tokens[i])
+                    if i == len(tokens) - 1:
+                        root.add_node(num)
+                        break
+                    operator = tokens[i + 1]
+                    while operator.token_type.name == "PLUS" or operator.token_type.name == "MINUS" or operator.token_type.name == "LOGICAL":
+                        left = tokens[tokens.index(operator) + 1]
+                        left_node = NumNode(left)
+
+                        num = BinOperand(operator, num, left_node)
+                        if tokens.index(left) == len(tokens) - 1:
+                            break
+                        operator = tokens[tokens.index(left) + 1]
+                    root.add_node(num)
+                if tokens[i].token_type.name == "OBJ":
+                    root.add_node(ObjNode(tokens[i]))
+        return root
+
+    def __parse_num_or_var_or_bool_str(self):
         num = self.__math(TokenTypes["NUM"])
         if num is not None:
             return NumNode(num)
-        var = self.__math(TokenTypes["NAME VAR"])
+        var = self.__math(TokenTypes["OBJ"])
         if var is not None:
-            return VariableNode(var)
+            return CreateVariableNode(var)
         bool_ = self.__math(TokenTypes["BOOL"])
         if bool_ is not None:
             return BooleanNode(bool_)
         str_ = self.__math(TokenTypes["STRING"])
         if str_ is not None:
             return StringNode(str_)
-        input_ = self.__math(TokenTypes["INPUT"])
-        if input_ is not None:
-            return UnaryOperand(input_, None)
         raise SyntaxError("Неверный синтаксис ожидалось число или имя переменной")
 
     def __parse_formula(self):
-        left = self.__parse_num_or_var_or_bool_str_or_input()
+        left = self.__parse_num_or_var_or_bool_str()
         operator = self.__math(TokenTypes["PLUS"])
         if operator is None:
             operator = self.__math(TokenTypes["MINUS"])
@@ -148,8 +185,8 @@ class Interpreter:
             operator = self.__math(TokenTypes["LOGICAL"])
         node_formula = left
         while operator is not None:
-            right = self.__parse_num_or_var_or_bool_str_or_input()
-            node_formula = BinOperand(operator, left, right)
+            right = self.__parse_num_or_var_or_bool_str()
+            node_formula = BinOperand(operator, node_formula, right)
             operator = self.__math(TokenTypes["PLUS"])
             if operator is None:
                 operator = self.__math(TokenTypes["MINUS"])
